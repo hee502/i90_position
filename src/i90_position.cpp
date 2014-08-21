@@ -41,10 +41,12 @@ float fPrevYaw=45;// previous yaw angle of i90
 int iPubFlag=0;//Flag to allow publishment of the last calculated position estimation
 int iRotError;//Encoder values difference
 int iRotAverage;//Average of encoder value changes during rotation
+int iRotDiff;
 float fDistanceTravelled;//This variable stores the distance travelled by i90 from its previous position
 float fTargetAngleYaw;//Target heading
 int iTransError;  // This variable stores the difference in the wheel encoder differences reading which is error in the translational motion
 int iTransAverage;//Average of encoder value changes during translation
+int iTransDiff;
 bool bTurnDir;//0:CW, 1:CCW
 float f = 0.00;//Delete
 i90_position::pos currentPos;
@@ -82,7 +84,7 @@ int main(int argc, char **argv){
 
 	while (ros::ok()){
 		if(iPubFlag==1){//If both rotation and translation is done
-			posPub.publish(currentPos);//Publish the new position			
+			//posPub.publish(currentPos);//Publish the new position			
 
 			/*Visualization settings*/
 			line_strip.header.frame_id = "/my_frame";
@@ -158,10 +160,10 @@ void recalculateRotation(const std_msgs::UInt8 iRotFlag){
 			currentPos.fYawAngle -= 360.00;
 		}
 	}
-	ROS_INFO("New Angle: %f", currentPos.fYawAngle);
-/*
-	/*Translation during rotation
-	iRotError = iEncoderDifference[1] - iEncoderDifference[0];//Difference in wheels
+	ROS_INFO("New Angle after rotation: %f", currentPos.fYawAngle);
+
+	/*Translation during rotation*/
+/*	iRotError = iEncoderDifference[1] - iEncoderDifference[0];//Difference in wheels
 	fDistanceTravelled = iRotError * 0.00066;//Compensates error
 	currentPos.fXPos = prevPos.fXPos + (fDistanceTravelled * (cos(currentPos.fYawAngle * (PI / 180.00)))); // Compensates error in position
 	currentPos.fXPos = prevPos.fXPos + (fDistanceTravelled * (sin(currentPos.fYawAngle * (PI / 180.00))));
@@ -193,7 +195,16 @@ void recalculateTranslation(const std_msgs::UInt8 iTransFlag){
 		iEncoderDifference[1] = iPrevEnc[1] - iCurEnc[1];
 	}
 
-	/*Calculate the angle change during translation due to the motor problem
+	/*Calculate the change in translation*/
+	iTransAverage = round((iEncoderDifference[0] + iEncoderDifference[1]) / 2);//Average change in encoders
+	fDistanceTravelled = iTransAverage * ENC2DIS;//Change in meters
+
+	/*Calculate the change in angle*/
+	iTransDiff = iEncoderDifference[1] - iEncoderDifference[0];
+	currentPos.fYawAngle += iTransDiff * 0.00655807 / 0.32;
+	ROS_INFO("New Angle after translation: %f", currentPos.fYawAngle);
+
+/*
 	if(iEncoderDifference[1] > iEncoderDifference[0]){//CCW turning during translation
 		iTransError = iEncoderDifference[1] - iEncoderDifference[0]; // Calulates the difference in wheel encoders
 		currentPos.fYawAngle += iTransError * ENC2DEG;//Compensates angular error. 0.235 is angular precision of wheel encoder in degrees.
@@ -209,9 +220,6 @@ void recalculateTranslation(const std_msgs::UInt8 iTransFlag){
 		}
 	}
 */
-	/*Calculate the change in translation*/
-	iTransAverage = round((iEncoderDifference[0] + iEncoderDifference[1]) / 2);//Average change in encoders
-	fDistanceTravelled = iTransAverage * ENC2DIS;//Change in meters
 
 	/*Calculate the new positions*/
 	currentPos.fXPos = prevPos.fXPos + (fDistanceTravelled * (cos(currentPos.fYawAngle * (M_PI / 180))));// Updates position of i90
