@@ -3,9 +3,11 @@
 //Node Structure creation																										 //
 //Huseyin Emre Erdem 																												 //
 //v1.2																					                             //	
-//Changelog:
-//-Visualization of estimation points using rviz package is added			
-//19.08.2014 																																 //
+//Changelog:																																 //
+//-Visualization of estimation points using rviz package is added						 //
+//ToDo:																																			 //
+//-Add movement with 3 steps																								 //
+//22.08.2014 																																 //
 ///////////////////////////////////////////////////////////////////////////////
 
 /*This node reads the encoder values from /drrobot_motor topic and estimates the
@@ -32,23 +34,23 @@ After estimation of a new position, the position is sent to visualization node
 #define ENC2DIS 0.000655809//Constant for conversion from encoder to distance (PI * 2 * 0.0835 (wheel radius) / 800 (encoder pulses per cycle))
 
 /*Variables*/
-int iPrevEnc[2]={0,0};//0:left wheel, 1:right wheel Previous encoder readings
-int iCurEnc[2];	      //Current encoder readings for both wheels
-int iEncoderDifference[2]; //Difference of Current encoder reading and previous encoder reading for both wheels
-float fPrevPosX=0;// Previous x position of i90 
-float fPrevPosY=0;// Previous y position of i90 
-float fPrevYaw=45;// previous yaw angle of i90
-int iPubFlag=0;//Flag to allow publishment of the last calculated position estimation
-int iRotError;//Encoder values difference
-int iRotAverage;//Average of encoder value changes during rotation
-int iRotDiff;
-float fDistanceTravelled;//This variable stores the distance travelled by i90 from its previous position
-float fTargetAngleYaw;//Target heading
-int iTransError;  // This variable stores the difference in the wheel encoder differences reading which is error in the translational motion
-int iTransAverage;//Average of encoder value changes during translation
-int iTransDiff;
-bool bTurnDir;//0:CW, 1:CCW
-float f = 0.00;//Delete
+volatile int iPrevEnc[2]={0,0};//0:left wheel, 1:right wheel Previous encoder readings
+volatile int iCurEnc[2];	      //Current encoder readings for both wheels
+volatile int iEncoderDifference[2]; //Difference of Current encoder reading and previous encoder reading for both wheels
+volatile float fPrevPosX=0;// Previous x position of i90 
+volatile float fPrevPosY=0;// Previous y position of i90 
+volatile float fPrevYaw=45;// previous yaw angle of i90
+volatile int iPubFlag=0;//Flag to allow publishment of the last calculated position estimation
+volatile int iRotError;//Encoder values difference
+volatile int iRotAverage;//Average of encoder value changes during rotation
+volatile int iRotDiff;
+volatile float fDistanceTravelled;//This variable stores the distance travelled by i90 from its previous position
+volatile float fTargetAngleYaw;//Target heading
+volatile int iTransError;  // This variable stores the difference in the wheel encoder differences reading which is error in the translational motion
+volatile int iTransAverage;//Average of encoder value changes during translation
+volatile int iTransDiff;
+volatile bool bTurnDir;//0:CW, 1:CCW
+volatile float f = 0.00;//Delete
 i90_position::pos currentPos;
 i90_position::pos prevPos;
 
@@ -62,14 +64,16 @@ void readTargetPos(const i90_position::pos posReceived);//Reads target yaw angle
 int main(int argc, char **argv){
 	ros::init(argc, argv, "i90_position");//Create node called "i90_position"
 	ros::NodeHandle n;//Create nodehandler to modify features of the node
+	ros::Duration d = ros::Duration(2,0);
+	ros::Rate loop_rate(1);
+
+	/*Publishers & Subscribers*/
 	ros::Publisher posPub = n.advertise<i90_position::pos>("i90_current_pos", 1);//Publishes current position of i90
 	ros::Publisher markerPub = n.advertise<visualization_msgs::Marker>("visualization_marker", 10);
 	ros::Subscriber rotationSub = n.subscribe("i90_rotation_done", 1, recalculateRotation);//Calculates the new angle when after a rotation is performed
 	ros::Subscriber translationSub = n.subscribe("i90_translation_done", 1, recalculateTranslation);//Calculates the new position when a translation is performed
 	ros::Subscriber encoderSub = n.subscribe("drrobot_motor", 1, updateEncoder);//Reads the encoder values and assigns to variables to be used in other functions
 	ros::Subscriber targetSub = n.subscribe("i90_target_pos", 1, readTargetPos);//To read target positions
-	ros::Duration d = ros::Duration(2,0);
-	ros::Rate loop_rate(1);
 
 	/*Set initial position*/
 	iPrevEnc[0] = 0;
@@ -84,7 +88,7 @@ int main(int argc, char **argv){
 
 	while (ros::ok()){
 		if(iPubFlag==1){//If both rotation and translation is done
-			//posPub.publish(currentPos);//Publish the new position			
+			posPub.publish(currentPos);//Publish the new position			
 
 			/*Visualization settings*/
 			line_strip.header.frame_id = "/my_frame";
@@ -100,10 +104,7 @@ int main(int argc, char **argv){
 			p.x = currentPos.fXPos;
 			p.y = currentPos.fYPos;
 			p.z = 0.00;
-	/*	p.x = rand()%20;
-		p.y = rand()%20;
-		p.z = 0;
-		*/	line_strip.points.push_back(p);
+		  line_strip.points.push_back(p);
 			markerPub.publish(line_strip);
 
 			ROS_INFO("Published position: %f\t%f\t%f", currentPos.fXPos, currentPos.fYPos, currentPos.fYawAngle);
@@ -119,7 +120,7 @@ int main(int argc, char **argv){
 void recalculateRotation(const std_msgs::UInt8 iRotFlag){
 
 	/*Calculate the differences in encoder readings*/
-	ROS_INFO("Encoders: %u\t%u\t%u\t%u", iPrevEnc[0], iPrevEnc[1], iCurEnc[0], iCurEnc[1]);
+	ROS_INFO("Encoders after rotation: %u\t%u\t%u\t%u", iPrevEnc[0], iPrevEnc[1], iCurEnc[0], iCurEnc[1]);
 
 	/*Calculate the changes in encoder values together with turning direction*/
 	for(int i=0;i<2;i++){
@@ -144,10 +145,11 @@ void recalculateRotation(const std_msgs::UInt8 iRotFlag){
 			}
 		}
 	}
-	ROS_INFO("Encoders: %d\t%d\t%d", iEncoderDifference[0], iEncoderDifference[1], bTurnDir);
+	ROS_INFO("Encoder differences: %d\t%d\t%d", iEncoderDifference[0], iEncoderDifference[1], bTurnDir);
 
 	/*Calculate the angle change*/
 	iRotAverage = round ((iEncoderDifference[0] + iEncoderDifference[1]) / 2);//Average change
+	ROS_INFO("Angle change during rotation: %f\t%d", iRotAverage * ENC2DEG, bTurnDir);
 	if(bTurnDir == 0){//CW
 		currentPos.fYawAngle = prevPos.fYawAngle - (iRotAverage * ENC2DEG);//Compensates angular error. 0.235 is angular precision of wheel encoder in degrees.
 		if(currentPos.fYawAngle < 0.00){
@@ -175,11 +177,14 @@ void recalculateRotation(const std_msgs::UInt8 iRotFlag){
 		currentPos.fYawAngle = currentPos.fYawAngle + (iEncoderDifference[1] * 0.235);
 	}
 */
+	iPrevEnc[0]=iCurEnc[0];
+	iPrevEnc[1]=iCurEnc[1];
 	prevPos.fYawAngle=currentPos.fYawAngle;
 }
 
 /*Calculates the new position when a translation is performed*/
 void recalculateTranslation(const std_msgs::UInt8 iTransFlag){
+	ROS_INFO("Encoders after translation: %u\t%u\t%u\t%u", iPrevEnc[0], iPrevEnc[1], iCurEnc[0], iCurEnc[1]);
 
 	/*Calculate difference in encoder values*/
 	if(iCurEnc[0] < iPrevEnc[0]){//Left encoder value should have increased
@@ -195,14 +200,19 @@ void recalculateTranslation(const std_msgs::UInt8 iTransFlag){
 		iEncoderDifference[1] = iPrevEnc[1] - iCurEnc[1];
 	}
 
-	/*Calculate the change in translation*/
-	iTransAverage = round((iEncoderDifference[0] + iEncoderDifference[1]) / 2);//Average change in encoders
-	fDistanceTravelled = iTransAverage * ENC2DIS;//Change in meters
-
 	/*Calculate the change in angle*/
 	iTransDiff = iEncoderDifference[1] - iEncoderDifference[0];
 	currentPos.fYawAngle += iTransDiff * 0.00655807 / 0.32;
+	if(currentPos.fYawAngle < 0.00) currentPos.fYawAngle += 360.00;
+	if(currentPos.fYawAngle > 360.00) currentPos.fYawAngle -= 360.00;
 	ROS_INFO("New Angle after translation: %f", currentPos.fYawAngle);
+
+	/*Calculate the change in translation*/
+	iTransAverage = round((iEncoderDifference[0] + iEncoderDifference[1]) / 2);//Average change in encoders
+	fDistanceTravelled = iTransAverage * ENC2DIS;//Change in meters
+	currentPos.fXPos = prevPos.fXPos + (fDistanceTravelled * (cos(currentPos.fYawAngle * (M_PI / 180))));// Updates position of i90
+	currentPos.fYPos = prevPos.fYPos + (fDistanceTravelled * (sin(currentPos.fYawAngle * (M_PI / 180))));
+	ROS_INFO("New positions after translation: %f\t%f", currentPos.fXPos, currentPos.fYPos);
 
 /*
 	if(iEncoderDifference[1] > iEncoderDifference[0]){//CCW turning during translation
@@ -221,10 +231,6 @@ void recalculateTranslation(const std_msgs::UInt8 iTransFlag){
 	}
 */
 
-	/*Calculate the new positions*/
-	currentPos.fXPos = prevPos.fXPos + (fDistanceTravelled * (cos(currentPos.fYawAngle * (M_PI / 180))));// Updates position of i90
-	currentPos.fYPos = prevPos.fYPos + (fDistanceTravelled * (sin(currentPos.fYawAngle * (M_PI / 180))));
-
 	/*Set current values as previous to be used in the next loop*/
 	prevPos.fYawAngle=currentPos.fYawAngle;
 	prevPos.fXPos=currentPos.fXPos;
@@ -232,7 +238,7 @@ void recalculateTranslation(const std_msgs::UInt8 iTransFlag){
 	iPrevEnc[0]=iCurEnc[0];
 	iPrevEnc[1]=iCurEnc[1];
 
-	iPubFlag=1;
+	iPubFlag=1;//Set flag to publish the new estimated position
 }
 
 /*Reads the encoder values and assigns to variables to be used in other functions*/
