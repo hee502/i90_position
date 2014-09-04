@@ -1,9 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////
-//Source for i90_position node to estimate i90 position based on encoders		 //																																			 //
+//Source for i90_position node to estimate i90 position		 									 //
 //Huseyin Emre Erdem 																												 //
+//Mohammad Shahid Memon																											 //
 //v2.4																					                             //	
-//-ENC2DEG value increased
-//-Pos estimation to be improved
+//-Missing comments added																										 //
 //29.08.2014 																																 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -11,8 +11,6 @@
 new position based on encoder values. The new position is published under the 
 i90_pos topic. The type of the messages published is std_msgs::Float32MultiArray.
 After the estimation is done, a signal published on i90_estimation_done
-http://www.robotnav.com/position-estimation/
-Since encoder signal directions are different, there are slight differences
 After estimation of a new position, the position is sent to visualization node
 */
 
@@ -104,9 +102,7 @@ int main(int argc, char **argv){
 			line_strip.id = 0;
 			line_strip.type = visualization_msgs::Marker::LINE_STRIP;
 			line_strip.scale.x = 0.1;
-//			line_strip.color.r = (rand()&10)/10.0;
 			line_strip.color.g = 1.0;
-//			line_strip.color.b = (rand()&10)/10.0;//1.0;
 			line_strip.color.a = 1.0;
 			p.x = currentPos.fXPos;
 			p.y = currentPos.fYPos;
